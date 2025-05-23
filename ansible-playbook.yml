@@ -1,6 +1,15 @@
-- name: Configure Docker on EC2 Instances
+---
+- name: Configure Docker and deploy finance-app container
   hosts: all
   become: true
+
+  vars:
+    docker_image_name: "nandini20/finance-app"
+    docker_image_tag: "15"
+    container_name: "finance-app"
+    container_port_host: "8084"
+    container_port_container: "8081"
+
   tasks:
     - name: Update apt cache
       apt:
@@ -15,13 +24,25 @@
       service:
         name: docker
         state: started
+        enabled: yes
 
-    - name: Docker login to Docker Hub
-      shell: echo '{{ docker_password }}' | docker login -u '{{ docker_username }}' --password-stdin
-      args:
-        warn: false
+    - name: Log into Docker Hub
+      ansible.builtin.shell: |
+        echo "{{ docker_password }}" | docker login -u "{{ docker_username }}" --password-stdin
+      no_log: true
 
-    - name: Deploy Docker Container
-      shell: docker run -dit --name finance-app -p 8084:8081 {{ docker_username }}/finance-me:1.0
-      args:
-        warn: false
+    - name: Pull Docker image
+      community.docker.docker_image:
+        name: "{{ docker_image_name }}"
+        tag: "{{ docker_image_tag }}"
+        source: pull
+
+    - name: Run Docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image_name }}:{{ docker_image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ container_port_host }}:{{ container_port_container }}"
+
